@@ -15,9 +15,9 @@ async function seed() {
   const adminUsers = await db
     .insert(users)
     .values({
-      email: "admin@minsk-news.by",
+      email: "admin@admin.by",
       username: "Администратор",
-      password: "admin123", // В production должно быть зашифровано
+      password: "admin", // В production должно быть зашифровано
       isAdmin: true,
     })
     .returning();
