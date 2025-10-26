@@ -1,10 +1,11 @@
 import { useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import NewsCard from "@/components/NewsCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
+import { useEffect } from "react";
 
 interface NewsItem {
   id: string;
@@ -23,24 +24,31 @@ interface NewsItem {
 
 export default function Home() {
   const [location] = useLocation();
+  const queryClient = useQueryClient();
   const categorySlug = new URLSearchParams(location.split("?")[1] || "").get("category") || "all";
-  
+
+  // Invalidate queries when category changes to force refetch
+  useEffect(() => {
+    queryClient.invalidateQueries({ queryKey: ["/api/news"] });
+  }, [categorySlug, queryClient]);
+
   const { data: newsItems, isLoading } = useQuery<NewsItem[]>({
     queryKey: ["/api/news", categorySlug],
     queryFn: async () => {
-      const url = categorySlug === "all" 
-        ? "/api/news" 
+      const url = categorySlug === "all"
+        ? "/api/news"
         : `/api/news?category=${categorySlug}`;
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch news");
       return res.json();
     },
+    staleTime: 0, // Always refetch when component mounts
   });
-  
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      
+
       <main className="container mx-auto px-4 py-8 md:py-12">
         <div className="mb-8">
           <h1 className="text-4xl md:text-5xl font-bold mb-3">

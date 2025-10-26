@@ -99,7 +99,7 @@ export default function NewsEditor() {
       return await response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/news"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/news"], exact: false });
       toast({
         title: "Новость создана",
         description: "Новость успешно опубликована",
@@ -131,7 +131,7 @@ export default function NewsEditor() {
       return await response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/news"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/news"], exact: false });
       queryClient.invalidateQueries({ queryKey: ["/api/news", newsId] });
       toast({
         title: "Новость обновлена",
