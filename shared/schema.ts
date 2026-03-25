@@ -100,10 +100,27 @@ export const newsViews = pgTable("news_views", {
   userId: varchar("user_id").notNull().references(() => users.id),
   viewedAt: timestamp("viewed_at").notNull().defaultNow(),
 }, (table) => ({
-  // Ensure a user can only view a news article once for XP purposes
   uniqueUserNews: unique().on(table.userId, table.newsId),
-  // Index for fast lookups
   userNewsIdx: index("idx_news_views_user_news").on(table.userId, table.newsId),
 }));
 
 export type NewsView = typeof newsViews.$inferSelect;
+
+// Bookmarks table
+export const bookmarks = pgTable("bookmarks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  newsId: varchar("news_id").notNull().references(() => news.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  uniqueUserNews: unique().on(table.userId, table.newsId),
+  userBookmarksIdx: index("idx_bookmarks_user").on(table.userId),
+}));
+
+export const insertBookmarkSchema = createInsertSchema(bookmarks).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertBookmark = z.infer<typeof insertBookmarkSchema>;
+export type Bookmark = typeof bookmarks.$inferSelect;

@@ -1,4 +1,4 @@
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { Button } from "@/components/ui/button";
 import ThemeToggle from "./ThemeToggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -24,12 +24,13 @@ const categories = [
 ];
 
 export default function Header() {
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
+  const search = useSearch();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, isAuthenticated, logout } = useAuth();
   const { toast } = useToast();
-  
-  const currentCategory = new URLSearchParams(location.split("?")[1] || "").get("category") || "all";
+
+  const currentCategory = new URLSearchParams(search).get("category") || "all";
 
   const handleLogout = async () => {
     try {
@@ -51,16 +52,16 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container mx-auto px-4">
-        <div className="flex h-16 items-center justify-between">
+        <div className="flex h-16 items-center justify-between gap-2">
           <Link href="/">
             <div className="flex items-center gap-2 cursor-pointer hover-elevate px-3 py-2 rounded-lg transition-all">
               <Newspaper className="h-6 w-6 text-primary" />
-              <span className="text-xl font-bold">Новости Минска</span>
+              <span className="text-xl font-bold whitespace-nowrap">Новости Минска</span>
             </div>
           </Link>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-1 flex-1 justify-center px-6">
+          <nav className="hidden md:flex items-center gap-1 flex-1 justify-center px-4">
             <div className="flex items-center gap-1 overflow-x-auto">
               {categories.map((cat) => (
                 <Link key={cat.id} href={cat.id === "all" ? "/" : `/?category=${cat.id}`}>
@@ -84,7 +85,7 @@ export default function Header() {
           {/* Right Side Actions */}
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            
+
             {isAuthenticated ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

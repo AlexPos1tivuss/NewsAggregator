@@ -162,6 +162,20 @@ router.get("/api/categories", async (req: Request, res: Response) => {
   }
 });
 
+// News search route (must be before /api/news/:id)
+router.get("/api/news/search", async (req: Request, res: Response) => {
+  try {
+    const q = (req.query.q as string || "").trim();
+    if (!q) {
+      return res.json([]);
+    }
+    const newsItems = await storage.searchNews(q);
+    res.json(newsItems);
+  } catch (error) {
+    res.status(500).json({ error: "Ошибка при поиске новостей" });
+  }
+});
+
 // News routes
 router.get("/api/news", async (req: Request, res: Response) => {
   try {
@@ -173,15 +187,28 @@ router.get("/api/news", async (req: Request, res: Response) => {
   }
 });
 
-router.get("/api/news/:id", async (req: Request, res: Response) => {
+router.get("/api/news/:id/related", async (req: Request, res: Response) => {
   try {
-    const news = await storage.getNewsById(req.params.id);
-    if (!news) {
+    const newsItem = await storage.getNewsById(req.params.id);
+    if (!newsItem) {
       return res.status(404).json({ error: "Новость не найдена" });
     }
-    
-    // Increment views
+    const related = await storage.getRelatedNews(req.params.id, newsItem.categoryId, 3);
+    res.json(related);
+  } catch (error) {
+    res.status(500).json({ error: "Ошибка при получении похожих новостей" });
+  }
+});
+
+router.get("/api/news/:id", async (req: Request, res: Response) => {
+  try {
+    // Increment views first so the returned data reflects the new count
     await storage.incrementNewsViews(req.params.id);
+    
+    const newsItem = await storage.getNewsById(req.params.id);
+    if (!newsItem) {
+      return res.status(404).json({ error: "Новость не найдена" });
+    }
     
     // Award XP if user is logged in and hasn't viewed this news before
     if (req.session.userId) {
@@ -192,7 +219,7 @@ router.get("/api/news/:id", async (req: Request, res: Response) => {
       }
     }
     
-    res.json(news);
+    res.json(newsItem);
   } catch (error) {
     res.status(500).json({ error: "Ошибка при получении новости" });
   }
@@ -207,8 +234,8 @@ router.post("/api/news", requireAdmin, upload.single("image"), async (req: Reque
     };
     
     const parsed = insertNewsSchema.parse(data);
-    const news = await storage.createNews(parsed);
-    res.json(news);
+    const newsItem = await storage.createNews(parsed);
+    res.json(newsItem);
   } catch (error: any) {
     if (error.name === "ZodError") {
       const validationError = fromZodError(error);
@@ -226,13 +253,13 @@ router.put("/api/news/:id", requireAdmin, upload.single("image"), async (req: Re
     };
     
     const parsed = updateNewsSchema.parse(data);
-    const news = await storage.updateNews(req.params.id, parsed);
+    const newsItem = await storage.updateNews(req.params.id, parsed);
     
-    if (!news) {
+    if (!newsItem) {
       return res.status(404).json({ error: "Новость не найдена" });
     }
     
-    res.json(news);
+    res.json(newsItem);
   } catch (error: any) {
     if (error.name === "ZodError") {
       const validationError = fromZodError(error);
@@ -285,6 +312,40 @@ router.post("/api/news/:newsId/comments", requireAuth, async (req: Request, res:
   }
 });
 
+// Bookmark routes
+router.get("/api/bookmarks", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const userBookmarks = await storage.getUserBookmarks(req.session.userId!);
+    res.json(userBookmarks);
+  } catch (error) {
+    res.status(500).json({ error: "Ошибка при получении закладок" });
+  }
+});
+
+router.get("/api/bookmarks/:newsId", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const isBookmarked = await storage.isBookmarked(req.session.userId!, req.params.newsId);
+    res.json({ isBookmarked });
+  } catch (error) {
+    res.status(500).json({ error: "Ошибка при проверке закладки" });
+  }
+});
+
+router.post("/api/bookmarks/:newsId", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const isBookmarked = await storage.isBookmarked(req.session.userId!, req.params.newsId);
+    if (isBookmarked) {
+      await storage.removeBookmark(req.session.userId!, req.params.newsId);
+      res.json({ isBookmarked: false });
+    } else {
+      await storage.addBookmark(req.session.userId!, req.params.newsId);
+      res.json({ isBookmarked: true });
+    }
+  } catch (error) {
+    res.status(500).json({ error: "Ошибка при обновлении закладки" });
+  }
+});
+
 // Profile routes
 router.get("/api/users/:id", async (req: Request, res: Response) => {
   try {
@@ -294,11 +355,11 @@ router.get("/api/users/:id", async (req: Request, res: Response) => {
     }
     
     const { password, ...userWithoutPassword } = user;
-    const comments = await storage.getCommentsByUserId(req.params.id);
+    const userComments = await storage.getCommentsByUserId(req.params.id);
     
     res.json({
       ...userWithoutPassword,
-      comments,
+      comments: userComments,
     });
   } catch (error) {
     res.status(500).json({ error: "Ошибка при получении профиля" });
@@ -331,8 +392,8 @@ router.put("/api/users/:id", requireAuth, upload.single("avatar"), async (req: R
 // Admin routes
 router.get("/api/admin/users", requireAdmin, async (req: Request, res: Response) => {
   try {
-    const users = await storage.getAllUsers();
-    const usersWithoutPasswords = users.map(({ password, ...user }) => user);
+    const allUsers = await storage.getAllUsers();
+    const usersWithoutPasswords = allUsers.map(({ password, ...user }) => user);
     res.json(usersWithoutPasswords);
   } catch (error) {
     res.status(500).json({ error: "Ошибка при получении пользователей" });

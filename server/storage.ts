@@ -1,13 +1,14 @@
 import { drizzle } from "drizzle-orm/neon-serverless";
 import { neonConfig, Pool } from "@neondatabase/serverless";
 import ws from "ws";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, ilike, or, ne } from "drizzle-orm";
 import {
   users,
   categories,
   news,
   comments,
   newsViews,
+  bookmarks,
   type User,
   type InsertUser,
   type Category,
@@ -17,6 +18,7 @@ import {
   type UpdateNews,
   type Comment,
   type InsertComment,
+  type Bookmark,
 } from "@shared/schema";
 
 neonConfig.webSocketConstructor = ws;
@@ -41,6 +43,8 @@ export interface IStorage {
   // News
   getAllNews(categorySlug?: string): Promise<(News & { category: Category; author: User; commentsCount: number })[]>;
   getNewsById(id: string): Promise<(News & { category: Category; author: User; commentsCount: number }) | undefined>;
+  searchNews(query: string): Promise<(News & { category: Category; author: User; commentsCount: number })[]>;
+  getRelatedNews(newsId: string, categoryId: string, limit?: number): Promise<(News & { category: Category; author: User; commentsCount: number })[]>;
   createNews(newsData: InsertNews): Promise<News>;
   updateNews(id: string, newsData: UpdateNews): Promise<News | undefined>;
   deleteNews(id: string): Promise<void>;
@@ -54,6 +58,12 @@ export interface IStorage {
   // News Views (for XP tracking)
   hasUserViewedNews(userId: string, newsId: string): Promise<boolean>;
   recordNewsView(userId: string, newsId: string): Promise<void>;
+  
+  // Bookmarks
+  isBookmarked(userId: string, newsId: string): Promise<boolean>;
+  addBookmark(userId: string, newsId: string): Promise<void>;
+  removeBookmark(userId: string, newsId: string): Promise<void>;
+  getUserBookmarks(userId: string): Promise<(News & { category: Category; author: User; commentsCount: number })[]>;
   
   // XP and Levels
   awardXP(userId: string, amount: number): Promise<User | undefined>;
@@ -170,6 +180,56 @@ export class DbStorage implements IStorage {
     };
   }
 
+  async searchNews(query: string): Promise<(News & { category: Category; author: User; commentsCount: number })[]> {
+    const searchPattern = `%${query}%`;
+    const result = await db
+      .select({
+        news: news,
+        category: categories,
+        author: users,
+        commentsCount: sql<number>`cast(count(distinct ${comments.id}) as int)`,
+      })
+      .from(news)
+      .leftJoin(categories, eq(news.categoryId, categories.id))
+      .leftJoin(users, eq(news.authorId, users.id))
+      .leftJoin(comments, eq(news.id, comments.newsId))
+      .where(or(ilike(news.title, searchPattern), ilike(news.excerpt, searchPattern)))
+      .groupBy(news.id, categories.id, users.id)
+      .orderBy(desc(news.createdAt));
+
+    return result.map(r => ({
+      ...r.news,
+      category: r.category!,
+      author: r.author!,
+      commentsCount: r.commentsCount,
+    }));
+  }
+
+  async getRelatedNews(newsId: string, categoryId: string, limit = 3): Promise<(News & { category: Category; author: User; commentsCount: number })[]> {
+    const result = await db
+      .select({
+        news: news,
+        category: categories,
+        author: users,
+        commentsCount: sql<number>`cast(count(distinct ${comments.id}) as int)`,
+      })
+      .from(news)
+      .leftJoin(categories, eq(news.categoryId, categories.id))
+      .leftJoin(users, eq(news.authorId, users.id))
+      .leftJoin(comments, eq(news.id, comments.newsId))
+      .where(and(eq(news.categoryId, categoryId), ne(news.id, newsId)))
+      .groupBy(news.id, categories.id, users.id)
+      .orderBy(desc(news.createdAt))
+      .limit(limit);
+
+    return result.map(r => ({
+      ...r.news,
+      category: r.category!,
+      author: r.author!,
+      commentsCount: r.commentsCount,
+    }));
+  }
+
   async createNews(newsData: InsertNews): Promise<News> {
     const result = await db.insert(news).values(newsData).returning();
     return result[0];
@@ -247,6 +307,49 @@ export class DbStorage implements IStorage {
 
   async recordNewsView(userId: string, newsId: string): Promise<void> {
     await db.insert(newsViews).values({ userId, newsId }).onConflictDoNothing();
+  }
+
+  // Bookmarks
+  async isBookmarked(userId: string, newsId: string): Promise<boolean> {
+    const result = await db
+      .select()
+      .from(bookmarks)
+      .where(and(eq(bookmarks.userId, userId), eq(bookmarks.newsId, newsId)))
+      .limit(1);
+    return result.length > 0;
+  }
+
+  async addBookmark(userId: string, newsId: string): Promise<void> {
+    await db.insert(bookmarks).values({ userId, newsId }).onConflictDoNothing();
+  }
+
+  async removeBookmark(userId: string, newsId: string): Promise<void> {
+    await db.delete(bookmarks).where(and(eq(bookmarks.userId, userId), eq(bookmarks.newsId, newsId)));
+  }
+
+  async getUserBookmarks(userId: string): Promise<(News & { category: Category; author: User; commentsCount: number })[]> {
+    const result = await db
+      .select({
+        news: news,
+        category: categories,
+        author: users,
+        commentsCount: sql<number>`cast(count(distinct ${comments.id}) as int)`,
+      })
+      .from(bookmarks)
+      .innerJoin(news, eq(bookmarks.newsId, news.id))
+      .leftJoin(categories, eq(news.categoryId, categories.id))
+      .leftJoin(users, eq(news.authorId, users.id))
+      .leftJoin(comments, eq(news.id, comments.newsId))
+      .where(eq(bookmarks.userId, userId))
+      .groupBy(news.id, categories.id, users.id, bookmarks.createdAt)
+      .orderBy(desc(bookmarks.createdAt));
+
+    return result.map(r => ({
+      ...r.news,
+      category: r.category!,
+      author: r.author!,
+      commentsCount: r.commentsCount,
+    }));
   }
 
   // XP and Levels
