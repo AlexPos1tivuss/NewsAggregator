@@ -1,4 +1,5 @@
 import { Router, Request, Response, NextFunction } from "express";
+import bcrypt from "bcryptjs";
 import { storage } from "./storage";
 import {
   insertUserSchema,
@@ -89,7 +90,8 @@ router.post("/api/register", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Имя пользователя уже занято" });
     }
     
-    const user = await storage.createUser(parsed);
+    const hashedPassword = await bcrypt.hash(parsed.password, 10);
+    const user = await storage.createUser({ ...parsed, password: hashedPassword });
     req.session.userId = user.id;
     
     const { password, ...userWithoutPassword } = user;
@@ -108,7 +110,11 @@ router.post("/api/login", async (req: Request, res: Response) => {
     const parsed = loginSchema.parse(req.body);
     
     const user = await storage.getUserByEmail(parsed.email);
-    if (!user || user.password !== parsed.password) {
+    if (!user) {
+      return res.status(401).json({ error: "Неверный email или пароль" });
+    }
+    const passwordValid = await bcrypt.compare(parsed.password, user.password);
+    if (!passwordValid) {
       return res.status(401).json({ error: "Неверный email или пароль" });
     }
     

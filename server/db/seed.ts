@@ -1,5 +1,6 @@
 import { drizzle } from "drizzle-orm/neon-serverless";
 import { neonConfig, Pool } from "@neondatabase/serverless";
+import bcrypt from "bcryptjs";
 import ws from "ws";
 import { users, categories } from "@shared/schema";
 
@@ -17,7 +18,7 @@ async function seed() {
     .values({
       email: "admin@admin.by",
       username: "Администратор",
-      password: "admin", // В production должно быть зашифровано
+      password: await bcrypt.hash("admin", 10),
       isAdmin: true,
     })
     .returning();
