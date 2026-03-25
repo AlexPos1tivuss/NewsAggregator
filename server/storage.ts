@@ -193,7 +193,7 @@ export class DbStorage implements IStorage {
       .leftJoin(categories, eq(news.categoryId, categories.id))
       .leftJoin(users, eq(news.authorId, users.id))
       .leftJoin(comments, eq(news.id, comments.newsId))
-      .where(or(ilike(news.title, searchPattern), ilike(news.excerpt, searchPattern)))
+      .where(or(ilike(news.title, searchPattern), ilike(news.excerpt, searchPattern), ilike(news.content, searchPattern)))
       .groupBy(news.id, categories.id, users.id)
       .orderBy(desc(news.createdAt));
 

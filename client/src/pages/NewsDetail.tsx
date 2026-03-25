@@ -1,5 +1,6 @@
 import { useRoute, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { format, formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
 import Header from "@/components/Header";
@@ -71,6 +72,12 @@ export default function NewsDetail() {
     queryKey: ["/api/news", newsId],
     enabled: !!newsId,
   });
+
+  useEffect(() => {
+    if (newsId) {
+      queryClient.invalidateQueries({ queryKey: ["/api/news"] });
+    }
+  }, [newsId]);
 
   const { data: comments = [], isLoading: commentsLoading } = useQuery<CommentWithUser[]>({
     queryKey: ["/api/news", newsId, "comments"],
