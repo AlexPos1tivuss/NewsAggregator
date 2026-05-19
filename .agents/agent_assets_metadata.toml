@@ -12,3 +12,9 @@ id = "L2Lw5MXpVktmu2Wt97d8b"
 uri = "file://attached_assets/Диплом_Ксёнжик_перефразировано.docx"
 type = "word_document"
 title = "Диплом — перефразированный вариант (ИИ-фрагменты)"
+
+[[outputs]]
+id = "Y3DJbCqEgnsy1aACgDfDS"
+uri = "file://attached_assets/Диплом_Ксёнжик_перефразировано_с_цитатами.docx"
+type = "word_document"
+title = "Диплом — с цитированием 13%"
