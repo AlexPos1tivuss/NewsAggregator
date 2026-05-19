@@ -6,3 +6,9 @@ id = "aPo4CzLDkGCu-hNI_TTGZ"
 uri = "file://dist/Диплом_Ксёнжик_исправленный.docx"
 type = "word_document"
 title = "Диплом — исправленная версия (v3)"
+
+[[outputs]]
+id = "L2Lw5MXpVktmu2Wt97d8b"
+uri = "file://attached_assets/Диплом_Ксёнжик_перефразировано.docx"
+type = "word_document"
+title = "Диплом — перефразированный вариант (ИИ-фрагменты)"
